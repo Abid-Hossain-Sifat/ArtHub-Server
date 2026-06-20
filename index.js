@@ -30,7 +30,21 @@ app.get("/", (req, res) => {
 const run = async () => {
   try {
     await client.connect();
-    console.log("Connected to MongoDB successfully!");
+    const Data = client.db('ArtHub')
+    const ArtWorks = Data.collection('ArtWorks')
+
+
+    app.get ('/artworks', async (req, res) =>{
+      const cursor = ArtWorks.find()
+      const final = await cursor.toArray()
+
+      res.send (final)
+    })
+
+    await client.db('admin').command ({ ping: 1 });
+    console.log ('ping deployed')
+
+
   } catch (error) {
     console.error("MongoDB connection error:", error);
   }
