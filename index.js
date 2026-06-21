@@ -3,6 +3,7 @@ dotenv.config();
 
 import express from "express";
 import cors from "cors";
+import { ObjectId } from "mongodb";
 import { toNodeHandler } from "better-auth/node";
 import { auth, client } from "./auth.js";
 
@@ -36,7 +37,7 @@ const run = async () => {
 
     app.get('/artworks', async (req, res) => {
       try {
-        const { search, category, status, sort } = req.query;
+        const { search, category, status, sort, artistId } = req.query;
         let query = {};
 
         if (search) {
@@ -52,6 +53,10 @@ const run = async () => {
 
         if (status) {
           query.status = status;
+        }
+
+        if (artistId) {
+          query.artistId = artistId;
         }
 
         let sortOption = {};
@@ -114,6 +119,64 @@ const run = async () => {
 
         const result = await ArtWorks.insertOne(newArtwork);
         res.status(201).send({ success: true, insertedId: result.insertedId });
+      } catch (error) {
+        res.status(500).send({ error: error.message });
+      }
+    });
+
+    app.patch('/artworks/:id', async (req, res) => {
+      try {
+        const { id } = req.params;
+        if (!ObjectId.isValid(id)) {
+          return res.status(400).send({ error: 'Invalid artwork id' });
+        }
+
+        const { title, category, description, price } = req.body;
+        const updateFields = {};
+
+        if (title !== undefined) updateFields.title = title;
+        if (category !== undefined) updateFields.category = category;
+        if (description !== undefined) updateFields.description = description;
+        if (price !== undefined) {
+          const parsedPrice = parseFloat(price);
+          if (Number.isNaN(parsedPrice)) {
+            return res.status(400).send({ error: 'Invalid price' });
+          }
+          updateFields.price = parsedPrice;
+        }
+
+        if (Object.keys(updateFields).length === 0) {
+          return res.status(400).send({ error: 'No artwork fields provided to update' });
+        }
+
+        const result = await ArtWorks.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: updateFields }
+        );
+
+        if (result.matchedCount === 0) {
+          return res.status(404).send({ error: 'Artwork not found' });
+        }
+
+        res.send({ success: true });
+      } catch (error) {
+        res.status(500).send({ error: error.message });
+      }
+    });
+
+    app.delete('/artworks/:id', async (req, res) => {
+      try {
+        const { id } = req.params;
+        if (!ObjectId.isValid(id)) {
+          return res.status(400).send({ error: 'Invalid artwork id' });
+        }
+
+        const result = await ArtWorks.deleteOne({ _id: new ObjectId(id) });
+        if (result.deletedCount === 0) {
+          return res.status(404).send({ error: 'Artwork not found' });
+        }
+
+        res.send({ success: true });
       } catch (error) {
         res.status(500).send({ error: error.message });
       }
