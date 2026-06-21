@@ -89,6 +89,36 @@ const run = async () => {
       }
     });
 
+    app.post('/artworks', async (req, res) => {
+      try {
+        const { title, category, description, price, image, artistName, artistEmail, artistId } = req.body;
+
+        if (!title || !category || !price || !image || !artistName || !artistEmail) {
+          return res.status(400).send({ error: "Missing required fields" });
+        }
+
+        const newArtwork = {
+          title,
+          category,
+          description: description || "",
+          price: parseFloat(price),
+          image,
+          artistName,
+          artistEmail,
+          artistId: artistId || null,
+          status: "available",
+          isSold: false,
+          createdAt: new Date().toISOString(),
+          purchasedBy: null
+        };
+
+        const result = await ArtWorks.insertOne(newArtwork);
+        res.status(201).send({ success: true, insertedId: result.insertedId });
+      } catch (error) {
+        res.status(500).send({ error: error.message });
+      }
+    });
+
     await client.db('admin').command({ ping: 1 });
     console.log('ping deployed')
 
