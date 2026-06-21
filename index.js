@@ -34,15 +34,63 @@ const run = async () => {
     const ArtWorks = Data.collection('ArtWorks')
 
 
-    app.get ('/artworks', async (req, res) =>{
-      const cursor = ArtWorks.find()
-      const final = await cursor.toArray()
+    app.get('/artworks', async (req, res) => {
+      try {
+        const { search, category, status, sort } = req.query;
+        let query = {};
 
-      res.send (final)
-    })
+        if (search) {
+          query.$or = [
+            { title: { $regex: search, $options: 'i' } },
+            { artistName: { $regex: search, $options: 'i' } }
+          ];
+        }
 
-    await client.db('admin').command ({ ping: 1 });
-    console.log ('ping deployed')
+        if (category) {
+          query.category = category;
+        }
+
+        if (status) {
+          query.status = status;
+        }
+
+        let sortOption = {};
+        if (sort === 'a-z') {
+          sortOption.title = 1;
+        } else if (sort === 'z-a') {
+          sortOption.title = -1;
+        } else if (sort === 'low-to-high') {
+          sortOption.price = 1;
+        } else if (sort === 'high-to-low') {
+          sortOption.price = -1;
+        }
+
+        let cursor = ArtWorks.find(query);
+        if (Object.keys(sortOption).length > 0) {
+          cursor = cursor.sort(sortOption);
+        }
+        const final = await cursor.toArray();
+        res.send(final);
+      } catch (error) {
+        res.status(500).send({ error: error.message });
+      }
+    });
+          // Filter 
+    app.get('/artworks/filters', async (req, res) => {
+      try {
+        const categories = await ArtWorks.distinct('category');
+        const statuses = await ArtWorks.distinct('status');
+        res.send({
+          categories: categories.filter(Boolean),
+          statuses: statuses.filter(Boolean)
+        });
+      } catch (error) {
+        res.status(500).send({ error: error.message });
+      }
+    });
+
+    await client.db('admin').command({ ping: 1 });
+    console.log('ping deployed')
 
 
   } catch (error) {
