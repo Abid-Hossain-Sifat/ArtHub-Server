@@ -26,5 +26,12 @@ export const auth = betterAuth({
         defaultValue: "user",
       },
     },
+    changeEmail: {
+      enabled: true,
+      updateEmailWithoutVerification: true,
+    },
+  },
+  emailVerification: {
+    sendVerificationEmail: false,
   },
 });
