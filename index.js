@@ -10,14 +10,14 @@ import { auth, client } from "./auth.js";
 const app = express();
 const Port = process.env.PORT;
 
-// CORS setup 
+// CORS setup
 app.use(
   cors({
     origin: process.env.CLIENT_URL,
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
-  })
+  }),
 );
 
 app.all("/api/auth/*splat", toNodeHandler(auth));
@@ -31,19 +31,19 @@ app.get("/", (req, res) => {
 const run = async () => {
   try {
     await client.connect();
-    const Data = client.db('ArtHub')
-    const ArtWorks = Data.collection('ArtWorks')
+    const Data = client.db("ArtHub");
+    const ArtWorks = Data.collection("ArtWorks");
+    const User = Data.collection("user");
 
-
-    app.get('/artworks', async (req, res) => {
+    app.get("/artworks", async (req, res) => {
       try {
         const { search, category, status, sort, artistId } = req.query;
         let query = {};
 
         if (search) {
           query.$or = [
-            { title: { $regex: search, $options: 'i' } },
-            { artistName: { $regex: search, $options: 'i' } }
+            { title: { $regex: search, $options: "i" } },
+            { artistName: { $regex: search, $options: "i" } },
           ];
         }
 
@@ -60,13 +60,13 @@ const run = async () => {
         }
 
         let sortOption = {};
-        if (sort === 'a-z') {
+        if (sort === "a-z") {
           sortOption.title = 1;
-        } else if (sort === 'z-a') {
+        } else if (sort === "z-a") {
           sortOption.title = -1;
-        } else if (sort === 'low-to-high') {
+        } else if (sort === "low-to-high") {
           sortOption.price = 1;
-        } else if (sort === 'high-to-low') {
+        } else if (sort === "high-to-low") {
           sortOption.price = -1;
         }
 
@@ -80,25 +80,41 @@ const run = async () => {
         res.status(500).send({ error: error.message });
       }
     });
-          // Filter 
-    app.get('/artworks/filters', async (req, res) => {
+    // Filter
+    app.get("/artworks/filters", async (req, res) => {
       try {
-        const categories = await ArtWorks.distinct('category');
-        const statuses = await ArtWorks.distinct('status');
+        const categories = await ArtWorks.distinct("category");
+        const statuses = await ArtWorks.distinct("status");
         res.send({
           categories: categories.filter(Boolean),
-          statuses: statuses.filter(Boolean)
+          statuses: statuses.filter(Boolean),
         });
       } catch (error) {
         res.status(500).send({ error: error.message });
       }
     });
 
-    app.post('/artworks', async (req, res) => {
+    app.post("/artworks", async (req, res) => {
       try {
-        const { title, category, description, price, image, artistName, artistEmail, artistId } = req.body;
+        const {
+          title,
+          category,
+          description,
+          price,
+          image,
+          artistName,
+          artistEmail,
+          artistId,
+        } = req.body;
 
-        if (!title || !category || !price || !image || !artistName || !artistEmail) {
+        if (
+          !title ||
+          !category ||
+          !price ||
+          !image ||
+          !artistName ||
+          !artistEmail
+        ) {
           return res.status(400).send({ error: "Missing required fields" });
         }
 
@@ -114,7 +130,7 @@ const run = async () => {
           status: "available",
           isSold: false,
           createdAt: new Date().toISOString(),
-          purchasedBy: null
+          purchasedBy: null,
         };
 
         const result = await ArtWorks.insertOne(newArtwork);
@@ -124,11 +140,11 @@ const run = async () => {
       }
     });
 
-    app.patch('/artworks/:id', async (req, res) => {
+    app.patch("/artworks/:id", async (req, res) => {
       try {
         const { id } = req.params;
         if (!ObjectId.isValid(id)) {
-          return res.status(400).send({ error: 'Invalid artwork id' });
+          return res.status(400).send({ error: "Invalid artwork id" });
         }
 
         const { title, category, description, price } = req.body;
@@ -140,22 +156,24 @@ const run = async () => {
         if (price !== undefined) {
           const parsedPrice = parseFloat(price);
           if (Number.isNaN(parsedPrice)) {
-            return res.status(400).send({ error: 'Invalid price' });
+            return res.status(400).send({ error: "Invalid price" });
           }
           updateFields.price = parsedPrice;
         }
 
         if (Object.keys(updateFields).length === 0) {
-          return res.status(400).send({ error: 'No artwork fields provided to update' });
+          return res
+            .status(400)
+            .send({ error: "No artwork fields provided to update" });
         }
 
         const result = await ArtWorks.updateOne(
           { _id: new ObjectId(id) },
-          { $set: updateFields }
+          { $set: updateFields },
         );
 
         if (result.matchedCount === 0) {
-          return res.status(404).send({ error: 'Artwork not found' });
+          return res.status(404).send({ error: "Artwork not found" });
         }
 
         res.send({ success: true });
@@ -164,16 +182,16 @@ const run = async () => {
       }
     });
 
-    app.delete('/artworks/:id', async (req, res) => {
+    app.delete("/artworks/:id", async (req, res) => {
       try {
         const { id } = req.params;
         if (!ObjectId.isValid(id)) {
-          return res.status(400).send({ error: 'Invalid artwork id' });
+          return res.status(400).send({ error: "Invalid artwork id" });
         }
 
         const result = await ArtWorks.deleteOne({ _id: new ObjectId(id) });
         if (result.deletedCount === 0) {
-          return res.status(404).send({ error: 'Artwork not found' });
+          return res.status(404).send({ error: "Artwork not found" });
         }
 
         res.send({ success: true });
@@ -182,10 +200,38 @@ const run = async () => {
       }
     });
 
-    await client.db('admin').command({ ping: 1 });
-    console.log('ping deployed')
+    app.get("/user", async (req, res) => {
+      const use = User.find();
+      const user = await use.toArray();
+      res.send(user);
+    });
 
+    app.patch("/user/:id", async (req, res) => {
+      try {
+        const { id } = req.params;
+        const { role } = req.body;
 
+        const result = await User.updateOne(
+          { _id: new ObjectId(id) },
+          {
+            $set: {
+              role,
+              updatedAt: new Date(),
+            },
+          },
+        );
+
+        res.send({
+          success: true,
+          modifiedCount: result.modifiedCount,
+        });
+      } catch (error) {
+        res.status(500).send({ error: error.message });
+      }
+    });
+
+    await client.db("admin").command({ ping: 1 });
+    console.log("ping deployed");
   } catch (error) {
     console.error("MongoDB connection error:", error);
   }
