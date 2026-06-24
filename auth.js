@@ -24,7 +24,7 @@ export const auth = betterAuth({
       clientSecret: process.env.CLIENT_SECRET,
     },
   },
-  trustedOrigins: ["process.env.CLIENT_URL"],
+  trustedOrigins: [process.env.CLIENT_URL],
   user: {
     additionalFields: {
       role: {
