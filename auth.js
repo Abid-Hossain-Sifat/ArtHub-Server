@@ -18,6 +18,13 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
   },
+  socialProviders: {
+    google: {
+      clientId: process.env.CLIENT_ID,
+      clientSecret: process.env.CLIENT_SECRET,
+    },
+  },
+  trustedOrigins: ["process.env.CLIENT_URL"],
   user: {
     additionalFields: {
       role: {
@@ -29,6 +36,20 @@ export const auth = betterAuth({
     changeEmail: {
       enabled: true,
       updateEmailWithoutVerification: true,
+    },
+  },
+  databaseHooks: {
+    user: {
+      create: {
+        before: async (user) => {
+          return {
+            data: {
+              ...user,
+              role: user.role || "user",
+            },
+          };
+        },
+      },
     },
   },
   emailVerification: {

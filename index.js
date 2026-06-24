@@ -37,7 +37,7 @@ const run = async () => {
 
     app.get("/artworks", async (req, res) => {
       try {
-        const { search, category, status, sort, artistId } = req.query;
+        const { search, category, status, sort, artistId, page, limit } = req.query;
         let query = {};
 
         if (search) {
@@ -74,8 +74,25 @@ const run = async () => {
         if (Object.keys(sortOption).length > 0) {
           cursor = cursor.sort(sortOption);
         }
-        const final = await cursor.toArray();
-        res.send(final);
+
+        if (page) {
+          const parsedPage = parseInt(page, 10) || 1;
+          const parsedLimit = parseInt(limit, 10) || 12;
+          const skip = (parsedPage - 1) * parsedLimit;
+
+          const totalCount = await ArtWorks.countDocuments(query);
+          const artworks = await cursor.skip(skip).limit(parsedLimit).toArray();
+
+          res.send({
+            artworks,
+            totalCount,
+            totalPages: Math.ceil(totalCount / parsedLimit),
+            currentPage: parsedPage,
+          });
+        } else {
+          const final = await cursor.toArray();
+          res.send(final);
+        }
       } catch (error) {
         res.status(500).send({ error: error.message });
       }
