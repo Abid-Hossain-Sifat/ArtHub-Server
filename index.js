@@ -34,10 +34,12 @@ const run = async () => {
     const Data = client.db("ArtHub");
     const ArtWorks = Data.collection("ArtWorks");
     const User = Data.collection("user");
+    const PurchasesArtworks = Data.collection("purchasesArtworks");
 
     app.get("/artworks", async (req, res) => {
       try {
-        const { search, category, status, sort, artistId, page, limit } = req.query;
+        const { search, category, status, sort, artistId, page, limit } =
+          req.query;
         let query = {};
 
         if (search) {
@@ -217,6 +219,105 @@ const run = async () => {
       }
     });
 
+    app.post("/purchase/:id", async (req, res) => {
+      try {
+        const { id } = req.params;
+
+        const { buyerId, buyerName, buyerEmail } = req.body;
+
+        if (!ObjectId.isValid(id)) {
+          return res.status(400).send({
+            error: "Invalid artwork id",
+          });
+        }
+
+        if (!ObjectId.isValid(buyerId)) {
+          return res.status(400).send({
+            error: "Invalid buyer id",
+          });
+        }
+
+        const artwork = await ArtWorks.findOne({
+          _id: new ObjectId(id),
+        });
+
+        const buyer = await User.findOne({
+          _id: new ObjectId(buyerId),
+        });
+
+        if (!buyer) {
+          return res.status(404).send({
+            error: "Buyer not found",
+          });
+        }
+
+        if (!artwork) {
+          return res.status(404).send({
+            error: "Artwork not found",
+          });
+        }
+
+        if (artwork.artistId === buyerId) {
+          return res.status(400).send({
+            error: "Artists cannot purchase their own artwork",
+          });
+        }
+
+        if (buyer.role === "artist") {
+          return res.status(403).send({
+            error: "Artist accounts cannot purchase artworks",
+          });
+        }
+
+        if (artwork.isSold) {
+          return res.status(400).send({
+            error: "Artwork already sold",
+          });
+        }
+
+        const purchaseData = {
+          artworkId: artwork._id.toString(),
+          artworkTitle: artwork.title,
+          artworkImage: artwork.image,
+          artworkCategory: artwork.category,
+          price: artwork.price,
+
+          artistId: artwork.artistId,
+          artistName: artwork.artistName,
+
+          buyerId,
+          buyerName,
+          buyerEmail,
+
+          purchasedAt: new Date().toISOString(),
+        };
+
+        await PurchasesArtworks.insertOne(purchaseData);
+
+        await ArtWorks.updateOne(
+          {
+            _id: new ObjectId(id),
+          },
+          {
+            $set: {
+              status: "sold",
+              isSold: true,
+              purchasedBy: buyerName,
+            },
+          },
+        );
+
+        res.send({
+          success: true,
+          message: "Artwork purchased successfully",
+        });
+      } catch (error) {
+        res.status(500).send({
+          error: error.message,
+        });
+      }
+    });
+
     app.get("/user", async (req, res) => {
       const use = User.find();
       const user = await use.toArray();
@@ -255,7 +356,7 @@ const run = async () => {
 };
 
 run().then(() => {
-  app.listen(Port, () => {
+  app.listen(Port, (req, res) => {
     console.log(`Server Successfully Run on ${Port}`);
   });
 });
