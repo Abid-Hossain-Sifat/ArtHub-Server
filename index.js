@@ -223,7 +223,7 @@ const run = async () => {
       try {
         const { id } = req.params;
 
-        const { buyerId, buyerName, buyerEmail } = req.body;
+        const { buyerId, buyerName, buyerEmail, buyerImage } = req.body;
 
         if (!ObjectId.isValid(id)) {
           return res.status(400).send({
@@ -286,8 +286,9 @@ const run = async () => {
           artistName: artwork.artistName,
 
           buyerId,
-          buyerName,
-          buyerEmail,
+          buyerName: buyerName || buyer.name,
+          buyerEmail: buyerEmail || buyer.email,
+          buyerImage: buyerImage || buyer.image || null,
 
           purchasedAt: new Date().toISOString(),
         };
@@ -345,6 +346,28 @@ const run = async () => {
         });
       } catch (error) {
         res.status(500).send({ error: error.message });
+      }
+    });
+
+    app.get("/purchasehistory", async (req, res) => {
+      try {
+        const { artistId } = req.query;
+
+        let query = {};
+
+        if (artistId) {
+          query.artistId = artistId;
+        }
+
+        const history = await PurchasesArtworks.find(query)
+          .sort({ purchasedAt: -1 })
+          .toArray();
+
+        res.send(history);
+      } catch (error) {
+        res.status(500).send({
+          error: error.message,
+        });
       }
     });
 
