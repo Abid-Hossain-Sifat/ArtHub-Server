@@ -35,6 +35,7 @@ const run = async () => {
     const ArtWorks = Data.collection("ArtWorks");
     const User = Data.collection("user");
     const PurchasesArtworks = Data.collection("purchasesArtworks");
+    const Comments = Data.collection("Comments");
 
     app.get("/artworks", async (req, res) => {
       try {
@@ -510,6 +511,126 @@ const run = async () => {
         });
       }
     });
+
+// --------------Comments---------------------
+app.post("/comments", async (req, res) => {
+  try {
+    const {
+      artworkId,
+      userId,
+      userName,
+      userImage,
+      comment,
+    } = req.body;
+
+    if (
+      !artworkId ||
+      !userId ||
+      !userName ||
+      !comment?.trim()
+    ) {
+      return res.status(400).send({
+        error: "Missing required fields",
+      });
+    }
+
+    const user = await User.findOne({
+      _id: new ObjectId(userId),
+    });
+
+    if (!user) {
+      return res.status(404).send({
+        error: "User not found",
+      });
+    }
+
+    if (user.role !== "user") {
+      return res.status(403).send({
+        error: "Only users can comment",
+      });
+    }
+
+    const artwork = await ArtWorks.findOne({
+      _id: new ObjectId(artworkId),
+    });
+
+    if (!artwork) {
+      return res.status(404).send({
+        error: "Artwork not found",
+      });
+    }
+
+    const newComment = {
+      artworkId,
+      userId,
+      userName,
+      userImage: userImage || null,
+      comment: comment.trim(),
+      createdAt: new Date().toISOString(),
+    };
+
+    const result = await Comments.insertOne(newComment);
+
+    res.status(201).send({
+      success: true,
+      comment: {
+        _id: result.insertedId,
+        ...newComment,
+      },
+    });
+  } catch (error) {
+    res.status(500).send({
+      error: error.message,
+    });
+  }
+});
+
+
+app.get("/comments/:artworkId", async (req, res) => {
+  try {
+    const { artworkId } = req.params;
+
+    const comments = await Comments.find({
+      artworkId,
+    })
+      .sort({
+        createdAt: -1,
+      })
+      .toArray();
+
+    res.send(comments);
+  } catch (error) {
+    res.status(500).send({
+      error: error.message,
+    });
+  }
+});
+
+
+app.get("/comments/user/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const comments = await Comments.find({
+      userId,
+    })
+      .sort({
+        createdAt: -1,
+      })
+      .toArray();
+
+    res.send(comments);
+  } catch (error) {
+    res.status(500).send({
+      error: error.message,
+    });
+  }
+});
+// -----------comment end------------- 
+
+
+
+
 
     await client.db("admin").command({ ping: 1 });
     console.log("ping deployed");
