@@ -36,6 +36,7 @@ const run = async () => {
     const User = Data.collection("user");
     const PurchasesArtworks = Data.collection("purchasesArtworks");
     const Comments = Data.collection("Comments");
+    const SubscriptionHistory = Data.collection("SubscriptionHistory");
 
     app.get("/artworks", async (req, res) => {
       try {
@@ -313,8 +314,11 @@ const run = async () => {
           });
         }
 
-        const purchaseData = {
-          artworkId: artwork._id.toString(),
+        const transactionId = `AH-P-${artwork._id.toString().slice(-6).toUpperCase()}`;
+
+const purchaseData = {
+  transactionId,
+  artworkId: artwork._id.toString(),
           artworkTitle: artwork.title,
           artworkImage: artwork.image,
           artworkCategory: artwork.category,
@@ -418,6 +422,18 @@ const run = async () => {
         const { id } = req.params;
         const { plan } = req.body;
 
+        const user = await User.findOne({
+  _id: new ObjectId(id),
+});
+
+if (!user) {
+  return res.status(404).send({
+    error: "User not found",
+  });
+}
+
+const previousPlan = user.subscription?.plan || "free";
+
         let purchaseLimit = 3;
 
         if (plan === "pro") {
@@ -444,6 +460,20 @@ const run = async () => {
           },
         );
 
+        const transactionId = `AH-S-${id.toString().slice(-6).toUpperCase()}`;
+
+await SubscriptionHistory.insertOne({
+  transactionId,
+  userId: id,
+  userName: user.name,
+  userEmail: user.email,
+
+  previousPlan: previousPlan,
+  newPlan: plan,
+
+  changedAt: new Date().toISOString(),
+});
+
         res.send({
           success: true,
           modifiedCount: result.modifiedCount,
@@ -454,6 +484,27 @@ const run = async () => {
         });
       }
     });
+
+    // GET Subscription History (ADMIN DASHBOARD)
+app.get("/subscription-history", async (req, res) => {
+  try {
+    const { userId } = req.query;
+
+    let query = {};
+    if (userId) {
+      query.userId = userId;
+    }
+
+    const history = await SubscriptionHistory
+      .find(query)
+      .sort({ changedAt: -1 })
+      .toArray();
+
+    res.send(history);
+  } catch (error) {
+    res.status(500).send({ error: error.message });
+  }
+});
 
     app.patch("/sync-purchases", async (req, res) => {
       try {
@@ -511,6 +562,38 @@ const run = async () => {
         });
       }
     });
+
+    app.get("/transactions", async (req, res) => {
+  try {
+    const purchases = await PurchasesArtworks.find().toArray();
+
+    const subscriptions = await SubscriptionHistory.find().toArray();
+
+    const purchaseTx = purchases.map(p => ({
+      transactionId: `AH-P-${p._id.toString().slice(-6).toUpperCase()}`,
+      type: "Purchase",
+      email: p.buyerEmail,
+      amount: `$${p.price}`,
+      date: new Date(p.purchasedAt).toLocaleDateString(),
+    }));
+
+    const subscriptionTx = subscriptions.map(s => ({
+      transactionId: `AH-S-${s._id.toString().slice(-6).toUpperCase()}`,
+      type: "Subscription",
+      email: s.userEmail,
+      amount: s.newPlan === "premium" ? "$99.00" : s.newPlan === "pro" ? "$49.00" : "$29.00",
+      date: new Date(s.changedAt).toLocaleDateString(),
+    }));
+
+    const all = [...purchaseTx, ...subscriptionTx]
+      .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    res.send(all);
+
+  } catch (error) {
+    res.status(500).send({ error: error.message });
+  }
+});
 
 // --------------Comments---------------------
 app.post("/comments", async (req, res) => {
