@@ -608,22 +608,67 @@ app.get("/comments/:artworkId", async (req, res) => {
 
 
 app.get("/comments/user/:userId", async (req, res) => {
+  console.log("Requested User ID:", req.params.userId);
   try {
     const { userId } = req.params;
 
-    const comments = await Comments.find({
-      userId,
-    })
-      .sort({
-        createdAt: -1,
-      })
-      .toArray();
+    const comments = await Comments.aggregate([
+      {
+        $match: {
+          userId,
+        },
+      },
+      {
+  $addFields: {
+    artworkObjectId: {
+      $toObjectId: "$artworkId",
+    },
+  },
+},
+      {
+  $lookup: {
+    from: "ArtWorks",
+    localField: "artworkObjectId",
+    foreignField: "_id",
+    as: "artwork",
+  },
+},
+      {
+        $unwind: "$artwork",
+      },
+      {
+        $sort: {
+          createdAt: -1,
+        },
+      },
+      {
+        $project: {
+          userName: 1,
+          userImage: 1,
+          comment: 1,
+          createdAt: 1,
+          artworkId: 1,
 
+          artworkTitle: "$artwork.title",
+          artworkImage: "$artwork.image",
+        },
+      },
+    ]).toArray();
+console.log(comments);
     res.send(comments);
   } catch (error) {
     res.status(500).send({
       error: error.message,
     });
+    const comments = await Comments.find({
+  userId: req.params.userId,
+})
+.sort({ createdAt: -1 })
+.toArray();
+
+console.log("Found Comments:", comments);
+
+res.send(comments);
   }
 });
 // -----------comment end------------- 
