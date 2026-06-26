@@ -595,6 +595,42 @@ app.get("/subscription-history", async (req, res) => {
   }
 });
 
+app.get("/transactions/daily", async (req, res) => {
+  try {
+    const purchases = await PurchasesArtworks.find().toArray();
+    const subscriptions = await SubscriptionHistory.find().toArray();
+
+    const dailyMap = {};
+
+    purchases.forEach(p => {
+      const date = p.purchasedAt?.slice(5, 10); 
+      const [month, day] = date.split("-");
+      const key = `${parseInt(month)}/${parseInt(day)}`;
+      if (!dailyMap[key]) dailyMap[key] = { date: key, artwork: 0, subscription: 0 };
+      dailyMap[key].artwork += p.price || 0;
+    });
+
+    subscriptions.forEach(s => {
+      const date = s.changedAt?.slice(5, 10);
+      const [month, day] = date.split("-");
+      const key = `${parseInt(month)}/${parseInt(day)}`;
+      if (!dailyMap[key]) dailyMap[key] = { date: key, artwork: 0, subscription: 0 };
+      const amount = s.newPlan === "premium" ? 99 : s.newPlan === "pro" ? 49 : 29;
+      dailyMap[key].subscription += amount;
+    });
+
+    const result = Object.values(dailyMap).sort((a, b) => {
+      const [am, ad] = a.date.split("/").map(Number);
+      const [bm, bd] = b.date.split("/").map(Number);
+      return am !== bm ? am - bm : ad - bd;
+    });
+
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ error: error.message });
+  }
+});
+
 // --------------Comments---------------------
 app.post("/comments", async (req, res) => {
   try {
