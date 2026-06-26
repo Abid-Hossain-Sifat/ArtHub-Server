@@ -12,6 +12,7 @@ if (!uri) {
 
 export const client = new MongoClient(uri);
 const db = client.db("ArtHub");
+const User = db.collection("user");
 
 export const auth = betterAuth({
   database: mongodbAdapter(db),
@@ -26,18 +27,24 @@ export const auth = betterAuth({
   },
   trustedOrigins: [process.env.CLIENT_URL],
   user: {
-    additionalFields: {
-      role: {
-        type: "string",
-        required: false,
-        defaultValue: "user",
-      },
+  additionalFields: {
+    role: {
+      type: "string",
+      required: false,
+      defaultValue: "user",
     },
-    changeEmail: {
-      enabled: true,
-      updateEmailWithoutVerification: true,
+
+    subscription: {
+      type: "object",
+      required: false,
     },
   },
+
+  changeEmail: {
+    enabled: true,
+    updateEmailWithoutVerification: true,
+  },
+},
   databaseHooks: {
     user: {
       create: {
@@ -48,6 +55,24 @@ export const auth = betterAuth({
               role: user.role || "user",
             },
           };
+        },
+
+        after: async (user) => {
+          await User.updateOne(
+            {
+              email: user.email,
+            },
+            {
+              $set: {
+                subscription: {
+                  plan: "free",
+                  purchaseLimit: 3,
+                  purchasedThisMonth: 0,
+                  currentMonth: new Date().toISOString().slice(0, 7),
+                },
+              },
+            },
+          );
         },
       },
     },

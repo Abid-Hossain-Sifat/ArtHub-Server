@@ -269,6 +269,43 @@ const run = async () => {
           });
         }
 
+        // Subscription validation
+        const currentMonth = new Date().toISOString().slice(0, 7);
+
+        if (!buyer.subscription) {
+          return res.status(400).send({
+            error: "No subscription found",
+          });
+        }
+
+        let subscription = buyer.subscription;
+
+        // Reset monthly purchase count if month changed
+        if (subscription.currentMonth !== currentMonth) {
+          subscription.purchasedThisMonth = 0;
+          subscription.currentMonth = currentMonth;
+
+          await User.updateOne(
+            { _id: new ObjectId(buyerId) },
+            {
+              $set: {
+                "subscription.purchasedThisMonth": 0,
+                "subscription.currentMonth": currentMonth,
+              },
+            },
+          );
+        }
+
+        // Check purchase limit
+        if (
+          subscription.purchaseLimit !== -1 &&
+          subscription.purchasedThisMonth >= subscription.purchaseLimit
+        ) {
+          return res.status(403).send({
+            error: "Monthly purchase limit reached",
+          });
+        }
+
         if (artwork.isSold) {
           return res.status(400).send({
             error: "Artwork already sold",
@@ -308,6 +345,16 @@ const run = async () => {
           },
         );
 
+        // Increase monthly purchase count
+        await User.updateOne(
+          { _id: new ObjectId(buyerId) },
+          {
+            $inc: {
+              "subscription.purchasedThisMonth": 1,
+            },
+          },
+        );
+
         res.send({
           success: true,
           message: "Artwork purchased successfully",
@@ -320,8 +367,24 @@ const run = async () => {
     });
 
     app.get("/user", async (req, res) => {
-      const use = User.find();
-      const user = await use.toArray();
+      const currentMonth = new Date().toISOString().slice(0, 7);
+
+      await User.updateMany(
+        {
+          "subscription.currentMonth": {
+            $ne: currentMonth,
+          },
+        },
+        {
+          $set: {
+            "subscription.currentMonth": currentMonth,
+            "subscription.purchasedThisMonth": 0,
+          },
+        },
+      );
+
+      const user = await User.find().toArray();
+
       res.send(user);
     });
 
@@ -349,15 +412,92 @@ const run = async () => {
       }
     });
 
+    app.patch("/user/:id/subscription", async (req, res) => {
+      try {
+        const { id } = req.params;
+        const { plan } = req.body;
+
+        let purchaseLimit = 3;
+
+        if (plan === "pro") {
+          purchaseLimit = 9;
+        }
+
+        if (plan === "premium") {
+          purchaseLimit = -1; // unlimited
+        }
+
+        const result = await User.updateOne(
+          {
+            _id: new ObjectId(id),
+          },
+          {
+            $set: {
+              subscription: {
+                plan,
+                purchaseLimit,
+                purchasedThisMonth: 0,
+                currentMonth: new Date().toISOString().slice(0, 7),
+              },
+            },
+          },
+        );
+
+        res.send({
+          success: true,
+          modifiedCount: result.modifiedCount,
+        });
+      } catch (error) {
+        res.status(500).send({
+          error: error.message,
+        });
+      }
+    });
+
+    app.patch("/sync-purchases", async (req, res) => {
+      try {
+        const currentMonth = new Date().toISOString().slice(0, 7);
+
+        const users = await User.find().toArray();
+
+        for (const user of users) {
+          const purchaseCount = await PurchasesArtworks.countDocuments({
+            buyerId: user._id.toString(),
+            purchasedAt: {
+              $regex: `^${currentMonth}`,
+            },
+          });
+
+          await User.updateOne(
+            { _id: user._id },
+            {
+              $set: {
+                "subscription.currentMonth": currentMonth,
+                "subscription.purchasedThisMonth": purchaseCount,
+              },
+            },
+          );
+        }
+
+        res.send({
+          success: true,
+          message: "Purchase counts synced successfully",
+        });
+      } catch (error) {
+        res.status(500).send({
+          error: error.message,
+        });
+      }
+    });
+
     app.get("/purchasehistory", async (req, res) => {
       try {
-        const { artistId } = req.query;
+        const { artistId, buyerId } = req.query;
 
         let query = {};
 
-        if (artistId) {
-          query.artistId = artistId;
-        }
+        if (artistId) query.artistId = artistId;
+        if (buyerId) query.buyerId = buyerId;
 
         const history = await PurchasesArtworks.find(query)
           .sort({ purchasedAt: -1 })
