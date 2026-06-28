@@ -417,6 +417,98 @@ const purchaseData = {
       }
     });
 
+    app.patch("/user/:id/profile", async (req, res) => {
+      try {
+        const { id } = req.params;
+        const { name, email, image } = req.body;
+
+        if (!ObjectId.isValid(id)) {
+          return res.status(400).send({ error: "Invalid user id" });
+        }
+
+        const updateFields = {};
+        if (name !== undefined) updateFields.name = name;
+        if (email !== undefined) updateFields.email = email;
+        if (image !== undefined) updateFields.image = image;
+
+        if (Object.keys(updateFields).length === 0) {
+          return res.status(400).send({ error: "No fields provided to update" });
+        }
+
+        // 1. Update primary User document
+        const result = await User.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: updateFields }
+        );
+
+        if (result.matchedCount === 0) {
+          return res.status(404).send({ error: "User not found" });
+        }
+
+        // 2. Sync to ArtWorks collection (if they are an artist)
+        const artworkUpdate = {};
+        if (name !== undefined) artworkUpdate.artistName = name;
+        if (email !== undefined) artworkUpdate.artistEmail = email;
+
+        if (Object.keys(artworkUpdate).length > 0) {
+          await ArtWorks.updateMany(
+            { artistId: id },
+            { $set: artworkUpdate }
+          );
+        }
+
+        // 3. Sync to purchasesArtworks collection
+        // - As buyer: update buyerName, buyerEmail, buyerImage
+        const purchaseBuyerUpdate = {};
+        if (name !== undefined) purchaseBuyerUpdate.buyerName = name;
+        if (email !== undefined) purchaseBuyerUpdate.buyerEmail = email;
+        if (image !== undefined) purchaseBuyerUpdate.buyerImage = image || null;
+
+        if (Object.keys(purchaseBuyerUpdate).length > 0) {
+          await PurchasesArtworks.updateMany(
+            { buyerId: id },
+            { $set: purchaseBuyerUpdate }
+          );
+        }
+
+        // - As artist: update artistName
+        if (name !== undefined) {
+          await PurchasesArtworks.updateMany(
+            { artistId: id },
+            { $set: { artistName: name } }
+          );
+        }
+
+        // 4. Sync to Comments collection: update userName, userImage
+        const commentUpdate = {};
+        if (name !== undefined) commentUpdate.userName = name;
+        if (image !== undefined) commentUpdate.userImage = image || null;
+
+        if (Object.keys(commentUpdate).length > 0) {
+          await Comments.updateMany(
+            { userId: id },
+            { $set: commentUpdate }
+          );
+        }
+
+        // 5. Sync to SubscriptionHistory collection: update userName, userEmail
+        const subHistoryUpdate = {};
+        if (name !== undefined) subHistoryUpdate.userName = name;
+        if (email !== undefined) subHistoryUpdate.userEmail = email;
+
+        if (Object.keys(subHistoryUpdate).length > 0) {
+          await SubscriptionHistory.updateMany(
+            { userId: id },
+            { $set: subHistoryUpdate }
+          );
+        }
+
+        res.send({ success: true, message: "Profile and all related collections updated successfully" });
+      } catch (error) {
+        res.status(500).send({ error: error.message });
+      }
+    });
+
     app.patch("/user/:id/subscription", async (req, res) => {
       try {
         const { id } = req.params;
