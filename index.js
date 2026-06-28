@@ -509,6 +509,46 @@ const purchaseData = {
       }
     });
 
+    app.get("/artist/:id/stats", async (req, res) => {
+      try {
+        const { id } = req.params;
+        if (!ObjectId.isValid(id)) {
+          return res.status(400).send({ error: "Invalid artist id" });
+        }
+
+        const artist = await User.findOne({ _id: new ObjectId(id) });
+        if (!artist) {
+          return res.status(404).send({ error: "Artist not found" });
+        }
+
+        // Count total artworks uploaded by this artist
+        const totalArtworks = await ArtWorks.countDocuments({ artistId: id });
+
+        // Count sold artworks by this artist
+        const soldArtworks = await ArtWorks.countDocuments({
+          artistId: id,
+          $or: [
+            { isSold: true },
+            { status: "sold" }
+          ]
+        });
+
+        res.send({
+          success: true,
+          artist: {
+            name: artist.name,
+            email: artist.email,
+            image: artist.image || null,
+            createdAt: artist.createdAt,
+            totalArtworks,
+            soldArtworks,
+          }
+        });
+      } catch (error) {
+        res.status(500).send({ error: error.message });
+      }
+    });
+
     app.patch("/user/:id/subscription", async (req, res) => {
       try {
         const { id } = req.params;
