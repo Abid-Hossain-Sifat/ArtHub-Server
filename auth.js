@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
 import { MongoClient } from "mongodb";
 import dotenv from "dotenv";
+import { jwt } from "better-auth/plugins";
 
 dotenv.config();
 
@@ -15,6 +16,15 @@ const db = client.db("ArtHub");
 const User = db.collection("user");
 
 export const auth = betterAuth({
+  plugins: [
+  jwt({
+    jwt: { expirationTime: "7d" },
+    cookieCache: {
+      enabled: true,
+      maxAge: 60 * 60 * 24 * 7 // 7 days
+    }
+  })
+],
   database: mongodbAdapter(db),
   emailAndPassword: {
     enabled: true,
