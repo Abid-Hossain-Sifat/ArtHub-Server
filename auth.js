@@ -17,6 +17,7 @@ const db = client.db("ArtHub");
 const User = db.collection("user");
 
 export const auth = betterAuth({
+  baseURL: process.env.BETTER_AUTH_URL,
   plugins: [
   jwt({
     jwt: { expirationTime: "7d" },
