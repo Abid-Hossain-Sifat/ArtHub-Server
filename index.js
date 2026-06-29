@@ -220,6 +220,9 @@ const run = async () => {
             currentPage: parsedPage,
           });
         } else {
+          if (limit) {
+            cursor = cursor.limit(parseInt(limit, 10));
+          }
           const final = await cursor.toArray();
           res.send(final);
         }
@@ -236,6 +239,51 @@ const run = async () => {
           categories: categories.filter(Boolean),
           statuses: statuses.filter(Boolean),
         });
+      } catch (error) {
+        res.status(500).send({ error: error.message });
+      }
+    });
+
+    // Top Artists
+    app.get("/artists/top", async (req, res) => {
+      try {
+        const artists = await User.find({ role: "artist" }).toArray();
+        const artistIds = artists.map(artist => artist._id.toString());
+        
+        // Fetch artworks for these artists only
+        const artworks = await ArtWorks.find({ artistId: { $in: artistIds } }).toArray();
+        
+        const artistMap = {};
+        artists.forEach(artist => {
+          artistMap[artist._id.toString()] = {
+            id: artist._id.toString(),
+            name: artist.name,
+            email: artist.email,
+            image: artist.image || "/default-avatar.png",
+            artworks: 0,
+            sales: 0
+          };
+        });
+        
+        artworks.forEach(art => {
+          const aId = art.artistId;
+          if (aId && artistMap[aId]) {
+            artistMap[aId].artworks++;
+            if (art.isSold || art.status === "sold") {
+              artistMap[aId].sales++;
+            }
+          }
+        });
+        
+        const topArtists = Object.values(artistMap)
+          .sort((a, b) => {
+            const scoreA = a.sales * 10 + a.artworks;
+            const scoreB = b.sales * 10 + b.artworks;
+            return scoreB - scoreA;
+          })
+          .slice(0, 3);
+          
+        res.send(topArtists);
       } catch (error) {
         res.status(500).send({ error: error.message });
       }
@@ -406,6 +454,7 @@ const run = async () => {
         }
 
         const session = await stripe.checkout.sessions.create({
+          customer_email: buyerEmail || buyer?.email || undefined,
           payment_method_types: ["card"],
           line_items: [
             {
@@ -462,6 +511,7 @@ const run = async () => {
         }
 
         const session = await stripe.checkout.sessions.create({
+          customer_email: user?.email || undefined,
           payment_method_types: ["card"],
           line_items: [
             {
