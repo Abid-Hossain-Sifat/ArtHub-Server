@@ -1210,8 +1210,6 @@ res.send(comments);
   }
 };
 
-run().then(() => {
-  app.listen(Port, (req, res) => {
-    console.log(`Server Successfully Run on ${Port}`);
-  });
-});
+run();
+
+export default app;
