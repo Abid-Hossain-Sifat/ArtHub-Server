@@ -152,7 +152,7 @@ app.post(
 app.use(express.json());
 
 app.get("/", (req, res) => {
-  res.send(`Server Open on this Port: ${Port}`);
+  res.send(`Server Open`);
 });
 
 const run = async () => {
