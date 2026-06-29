@@ -8,7 +8,6 @@ import { toNodeHandler } from "better-auth/node";
 import { auth, client } from "./auth.js";
 import Stripe from "stripe";
 
-// Globally declare collections for access in webhook
 let ArtWorks, User, PurchasesArtworks, SubscriptionHistory;
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
@@ -28,7 +27,7 @@ app.use(
 
 app.all("/api/auth/*splat", toNodeHandler(auth));
 
-// Webhook route - must be registered BEFORE express.json()
+// Webhook route
 app.post(
   "/webhook",
   express.raw({ type: "*/*" }),
@@ -53,7 +52,6 @@ app.post(
       return res.status(400).send(`Webhook Error: ${err.message}`);
     }
 
-    // Handle the event
     if (event.type === "checkout.session.completed") {
       const session = event.data.object;
       const metadata = session.metadata;
@@ -69,7 +67,7 @@ app.post(
               purchaseLimit = 9;
             }
             if (plan === "premium") {
-              purchaseLimit = -1; // unlimited
+              purchaseLimit = -1;
             }
             await User.updateOne(
               { _id: new ObjectId(userId) },
@@ -202,7 +200,7 @@ const run = async () => {
         } else if (sort === "high-to-low") {
           sortOption.price = -1;
         } else {
-          sortOption._id = -1; // Default to newest first
+          sortOption._id = -1;
         }
 
         let cursor = ArtWorks.find(query).sort(sortOption);
@@ -568,7 +566,7 @@ const run = async () => {
 
         let subscription = buyer.subscription;
 
-        // Reset monthly purchase count if month changed
+        // Reset monthly purchase
         if (subscription.currentMonth !== currentMonth) {
           subscription.purchasedThisMonth = 0;
           subscription.currentMonth = currentMonth;
@@ -721,7 +719,6 @@ const purchaseData = {
           return res.status(400).send({ error: "No fields provided to update" });
         }
 
-        // 1. Update primary User document
         const result = await User.updateOne(
           { _id: new ObjectId(id) },
           { $set: updateFields }
@@ -731,7 +728,6 @@ const purchaseData = {
           return res.status(404).send({ error: "User not found" });
         }
 
-        // 2. Sync to ArtWorks collection (if they are an artist)
         const artworkUpdate = {};
         if (name !== undefined) artworkUpdate.artistName = name;
         if (email !== undefined) artworkUpdate.artistEmail = email;
@@ -743,8 +739,6 @@ const purchaseData = {
           );
         }
 
-        // 3. Sync to purchasesArtworks collection
-        // - As buyer: update buyerName, buyerEmail, buyerImage
         const purchaseBuyerUpdate = {};
         if (name !== undefined) purchaseBuyerUpdate.buyerName = name;
         if (email !== undefined) purchaseBuyerUpdate.buyerEmail = email;
@@ -757,7 +751,6 @@ const purchaseData = {
           );
         }
 
-        // - As artist: update artistName
         if (name !== undefined) {
           await PurchasesArtworks.updateMany(
             { artistId: id },
@@ -765,7 +758,6 @@ const purchaseData = {
           );
         }
 
-        // 4. Sync to Comments collection: update userName, userImage
         const commentUpdate = {};
         if (name !== undefined) commentUpdate.userName = name;
         if (image !== undefined) commentUpdate.userImage = image || null;
@@ -777,7 +769,6 @@ const purchaseData = {
           );
         }
 
-        // 5. Sync to SubscriptionHistory collection: update userName, userEmail
         const subHistoryUpdate = {};
         if (name !== undefined) subHistoryUpdate.userName = name;
         if (email !== undefined) subHistoryUpdate.userEmail = email;
@@ -807,10 +798,8 @@ const purchaseData = {
           return res.status(404).send({ error: "Artist not found" });
         }
 
-        // Count total artworks uploaded by this artist
         const totalArtworks = await ArtWorks.countDocuments({ artistId: id });
 
-        // Count sold artworks by this artist
         const soldArtworks = await ArtWorks.countDocuments({
           artistId: id,
           $or: [
@@ -859,7 +848,7 @@ const previousPlan = user.subscription?.plan || "free";
         }
 
         if (plan === "premium") {
-          purchaseLimit = -1; // unlimited
+          purchaseLimit = -1;
         }
 
         const result = await User.updateOne(
