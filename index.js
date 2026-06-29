@@ -1212,4 +1212,10 @@ res.send(comments);
 
 run();
 
+if (!process.env.VERCEL) {
+  app.listen(Port, () => {
+    console.log(`Server Successfully Run on ${Port}`);
+  });
+}
+
 export default app;

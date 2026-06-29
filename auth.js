@@ -16,13 +16,15 @@ await client.connect();
 const db = client.db("ArtHub");
 const User = db.collection("user");
 
+const isProd = process.env.NODE_ENV === "production";
+
 export const auth = betterAuth({
   baseURL: process.env.BETTER_AUTH_URL,
   advanced: {
-    useSecureCookies: true,
+    useSecureCookies: isProd,
     defaultCookieAttributes: {
-      sameSite: "none",
-      secure: true,
+      sameSite: isProd ? "none" : "lax",
+      secure: isProd,
     },
   },
   plugins: [
