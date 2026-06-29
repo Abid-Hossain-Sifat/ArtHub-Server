@@ -12,6 +12,7 @@ if (!uri) {
 }
 
 export const client = new MongoClient(uri);
+await client.connect();
 const db = client.db("ArtHub");
 const User = db.collection("user");
 
