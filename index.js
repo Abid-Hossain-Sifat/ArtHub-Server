@@ -1184,7 +1184,6 @@ app.get("/comments/:artworkId", async (req, res) => {
 
 
 app.get("/comments/user/:userId", async (req, res) => {
-  console.log("Requested User ID:", req.params.userId);
   try {
     const { userId } = req.params;
 
@@ -1230,7 +1229,6 @@ app.get("/comments/user/:userId", async (req, res) => {
         },
       },
     ]).toArray();
-console.log(comments);
     res.send(comments);
   } catch (error) {
     res.status(500).send({
