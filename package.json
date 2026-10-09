@@ -1,10 +1,7 @@
 {
-  "name": "server",
-  "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "start": "node index.js",
-    "dev": "node --watch index.js"
+    "start": "node index.js"
   },
   "dependencies": {
     "@better-auth/mongo-adapter": "^1.6.19",
